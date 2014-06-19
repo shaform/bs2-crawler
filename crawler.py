@@ -133,16 +133,16 @@ class Crawler(object):
         article = '\n'.join(content[3:]).encode('utf-8')
 
         try:
-            post = Teacher.get(id=num)
-            post.article = article
+            post = Teacher.get(bbs_id=num)
+            post.content = article
             post.save()
             logger.info('Update: {id}'.format(id=num))
         except Teacher.DoesNotExist:
             post = Teacher.create(author=author,
                 title=title,
                 pub_time=time,
-                article=article,
-                id=num
+                content=article,
+                bbs_id=num
             )
             logger.info('Insert: {id}'.format(id=num))
 
