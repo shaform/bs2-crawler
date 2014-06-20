@@ -1,4 +1,5 @@
 # coding=utf-8
+import argparse
 import logging
 import pyte
 import re
@@ -129,6 +130,13 @@ class Crawler(object):
 
         time_line = content[2].encode('utf-8').split()[1:]
         time = ' '.join(time_line)
+        if not time.find('(') == -1:
+            time = time[time.find('(') + 1:time.find(')')]
+        time = time.split()
+        time.pop(1)
+        time = ' '.join(time)
+        print time
+
 
         article = '\n'.join(content[3:]).encode('utf-8')
 
@@ -148,4 +156,6 @@ class Crawler(object):
 
 
 if __name__ == '__main__':
+    # parser = argparse.ArgumentParser(description='Bs2 Crawler')
+
     bs2 = Crawler('bs2.to')

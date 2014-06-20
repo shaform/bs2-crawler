@@ -8,7 +8,7 @@ class Teacher(Model):
     bbs_id = IntegerField(null=True)
     author = CharField(max_length=513)
     title = CharField(max_length=513)
-    pub_time = CharField()
+    pub_time = DateTimeField()
     content = TextField()
 
     class Meta:
