@@ -1,26 +1,36 @@
 # coding=utf-8
 import argparse
-import logging
+import errno
 import pyte
 import re
 import time
 import os
 
-import config
-
 from telnetlib import Telnet
-from bsdconv import Bsdconv
-
-from models import Teacher
 
 
-logger = logging.getLogger( __name__ )
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
+
+class Conv(object):
+    def conv(self, s):
+        return s.decode('big5', 'ignore').encode('utf8')
+
+    def conv_chunk(self, s):
+        return s.decode('big5', 'ignore').encode('utf8')
 
 
 class Crawler(object):
-    convert = Bsdconv("ansi-control,byte:big5-defrag:byte,ansi-control|skip,big5:utf-8,bsdconv_raw")
+    convert = Conv()
 
-    def __init__(self, host):
+    def __init__(self, host, board_name):
         self.host = host
         self.delay = 0
         self.conn = Telnet(host, 3456)
@@ -30,8 +40,13 @@ class Crawler(object):
         self.stream.attach(self.screen)
         self.display
         self.login()
-        self.enter_board('NCTU-Teacher')
-        for i in range(input('n - ' + self.last_id + ': '), int(self.last_id) + 1):
+        self.display
+        print self.screen_shot
+        self.board_name = board_name
+        self.enter_board(board_name)
+        print self.screen_shot
+        for i in range(
+                input('n - ' + self.last_id + ': '), int(self.last_id) + 1):
             self.get_article(i)
 
     @property
@@ -39,7 +54,7 @@ class Crawler(object):
         s = self.conn.read_very_eager()
         while not s:
             s = self.conn.read_very_eager()
-            time.sleep(self.delay)           
+            time.sleep(self.delay)
         s = self.convert.conv(s)
         self.stream.feed(s.decode('utf-8'))
         return self.screen_shot
@@ -56,7 +71,7 @@ class Crawler(object):
             s = self.send('\r')
             if count == 1:
                 return s
-    
+
     def send(self, s):
         self.conn.write(s)
         ret = self.display
@@ -66,28 +81,38 @@ class Crawler(object):
         username = 'guest'
         self.conn.write(username + '\r')
         self.conn.write('\rYY\r')
-        self.send_enter(2)
+        self.send_enter(4)
 
     def enter_board(self, board):
         '''
         Save current board name in self.board
         and lastest article_id in self.last_id
         '''
-        self.send('OBOC')
-        self.send('s{}'.format(board))
-        self.send_enter(2)
+        self.send('s{}\r'.format(board))
+        print self.screen_shot
+        time.sleep(1)
+        while '(Tab/z)' not in self.screen_shot:
+            self.send('\r')
+            time.sleep(1)
+        print self.screen_shot
         line = self.screen.cursor.y
-        self.last_id = re.search(r'(?P<last_id>^\d+) ', self.screen.display[line].strip()).group()
+        self.last_id = re.search(r'(?P<last_id>^\d+) ',
+                                 self.screen.display[line].strip()).group()
         self.board = board
 
     def get_article(self, num=None):
+        print 'try get %d' % num
         if not num:
             return
 
-        self.send('{}\rOC'.format(num))
+        self.send('{}\r\r'.format(num))
+        if '(Tab/z)' in self.screen_shot:
+            return
         raw_artcle = self.screen.display[:-1]
 
         status_line = self.screen.display[-1]
+        if 'p%' not in status_line:
+            return
         if status_line.find('[Y/n]') != -1:
             self.send('n')
         while status_line.find('(100%)') == -1:
@@ -95,6 +120,7 @@ class Crawler(object):
             status_line = self.screen.display[-1]
             raw_artcle.append(self.screen.display[-2])
         self.save_article(num, raw_artcle)
+        print self.screen_shot
 
     def term_comm(feed=None, wait=None):
         if feed != None:
@@ -115,47 +141,19 @@ class Crawler(object):
         '''
         :param content: a list get from screen
         '''
-        chinese_keyword = {
-            'board': '看板',
-        }
+        article = '\n'.join(content).encode('utf-8')
 
-        author_line = content[0].encode('utf-8').split()
-        if not chinese_keyword['board'] in author_line:
-            return
-        _i = author_line.index(chinese_keyword['board'])
-        author = ' '.join(author_line[1:_i])
-
-        title_line = content[1].encode('utf-8').split()[1:]
-        title = ' '.join(title_line)
-
-        time_line = content[2].encode('utf-8').split()[1:]
-        time = ' '.join(time_line)
-        if not time.find('(') == -1:
-            time = time[time.find('(') + 1:time.find(')')]
-        time = time.split()
-        time.pop(1)
-        time = ' '.join(time)
-        print time
-
-
-        article = '\n'.join(content[3:]).encode('utf-8')
-
-        try:
-            post = Teacher.get(bbs_id=num)
-            post.content = article
-            post.save()
-            logger.info('Update: {id}'.format(id=num))
-        except Teacher.DoesNotExist:
-            post = Teacher.create(author=author,
-                title=title,
-                pub_time=time,
-                content=article,
-                bbs_id=num
-            )
-            logger.info('Insert: {id}'.format(id=num))
+        root_dir = os.path.join('articles', self.board_name)
+        mkdir_p(root_dir)
+        path = os.path.join(root_dir, str(num))
+        with open(path, 'w') as f:
+            f.write(article)
+        print '%d saved' % num
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Bs2 Crawler')
+    parser = argparse.ArgumentParser(description='Bs2 Crawler')
+    parser.add_argument('--board-name', required=True)
+    args = parser.parse_args()
 
-    bs2 = Crawler('bs2.to')
+    bs2 = Crawler('bs2.to', args.board_name)
