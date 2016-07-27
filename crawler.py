@@ -1,4 +1,3 @@
-# coding=utf-8
 import argparse
 import errno
 import pyte
@@ -41,13 +40,14 @@ class Crawler(object):
         self.display
         self.login()
         self.display
-        print self.screen_shot
+        print(self.screen_shot)
         self.skip_existing = skip_existing
         self.board_name = board_name
         self.enter_board(board_name)
-        print self.screen_shot
+        print(self.screen_shot)
         for i in range(
-                input('n - ' + self.last_id + ': '), int(self.last_id) + 1):
+                int(input('n - ' + self.last_id + ': ')),
+                int(self.last_id) + 1):
             self.get_article(i)
 
     @property
@@ -62,14 +62,14 @@ class Crawler(object):
 
     @property
     def screen_shot(self):
-        return "\n".join(self.screen.display).encode("utf-8")
+        return "\n".join(self.screen.display)
 
     def close(self):
         self.conn.close()
 
     def send_enter(self, count=1):
         for i in range(count):
-            s = self.send('\r')
+            s = self.send(b'\r')
             if count == 1:
                 return s
 
@@ -79,9 +79,9 @@ class Crawler(object):
         return ret
 
     def login(self):
-        username = 'guest'
-        self.conn.write(username + '\r')
-        self.conn.write('\rYY\r')
+        username = b'guest'
+        self.conn.write(username + b'\r')
+        self.conn.write(b'\rYY\r')
         self.send_enter(4)
 
     def enter_board(self, board):
@@ -89,13 +89,13 @@ class Crawler(object):
         Save current board name in self.board
         and lastest article_id in self.last_id
         '''
-        self.send('s{}\r'.format(board))
-        print self.screen_shot
+        self.send('s{}\r'.format(board).encode('utf8'))
+        print(self.screen_shot)
         time.sleep(1)
         while '(Tab/z)' not in self.screen_shot:
-            self.send('\r')
+            self.send(b'\r')
             time.sleep(1)
-        print self.screen_shot
+        print(self.screen_shot)
         line = self.screen.cursor.y
         self.last_id = re.search(r'(?P<last_id>^\d+) ',
                                  self.screen.display[line].strip()).group()
@@ -112,8 +112,8 @@ class Crawler(object):
         if self.skip_existing and os.path.exists(path):
             return
 
-        print 'try get %d' % num
-        self.send('{}\r\r'.format(num))
+        print('try get %d' % num)
+        self.send('{}\r\r'.format(num).encode('utf8'))
         if '(Tab/z)' in self.screen_shot:
             return
         raw_artcle = self.screen.display[:-1]
@@ -122,13 +122,13 @@ class Crawler(object):
         if 'p%' not in status_line:
             return
         if status_line.find('[Y/n]') != -1:
-            self.send('n')
+            self.send(b'n')
         while status_line.find('(100%)') == -1:
-            self.send('OB')
+            self.send(b'OB')
             status_line = self.screen.display[-1]
             raw_artcle.append(self.screen.display[-2])
         self.save_article(num, raw_artcle, path)
-        print self.screen_shot
+        print(self.screen_shot)
 
     def term_comm(feed=None, wait=None):
         if feed != None:
@@ -149,11 +149,11 @@ class Crawler(object):
         '''
         :param content: a list get from screen
         '''
-        article = '\n'.join(content).encode('utf-8')
+        article = '\n'.join(content)
 
         with open(path, 'w') as f:
             f.write(article)
-        print '%d saved' % num
+        print('%d saved' % num)
 
 
 if __name__ == '__main__':
