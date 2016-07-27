@@ -30,7 +30,7 @@ class Conv(object):
 class Crawler(object):
     convert = Conv()
 
-    def __init__(self, host, board_name):
+    def __init__(self, host, board_name, skip_existing):
         self.host = host
         self.delay = 0
         self.conn = Telnet(host, 3456)
@@ -42,6 +42,7 @@ class Crawler(object):
         self.login()
         self.display
         print self.screen_shot
+        self.skip_existing = skip_existing
         self.board_name = board_name
         self.enter_board(board_name)
         print self.screen_shot
@@ -101,10 +102,17 @@ class Crawler(object):
         self.board = board
 
     def get_article(self, num=None):
-        print 'try get %d' % num
         if not num:
             return
 
+        root_dir = os.path.join('articles', self.board_name)
+        mkdir_p(root_dir)
+        path = os.path.join(root_dir, str(num))
+
+        if self.skip_existing and os.path.exists(path):
+            return
+
+        print 'try get %d' % num
         self.send('{}\r\r'.format(num))
         if '(Tab/z)' in self.screen_shot:
             return
@@ -119,7 +127,7 @@ class Crawler(object):
             self.send('OB')
             status_line = self.screen.display[-1]
             raw_artcle.append(self.screen.display[-2])
-        self.save_article(num, raw_artcle)
+        self.save_article(num, raw_artcle, path)
         print self.screen_shot
 
     def term_comm(feed=None, wait=None):
@@ -137,15 +145,12 @@ class Crawler(object):
         ret = "\n".join(self.screen.display).encode("utf-8")
         return ret
 
-    def save_article(self, num, content):
+    def save_article(self, num, content, path):
         '''
         :param content: a list get from screen
         '''
         article = '\n'.join(content).encode('utf-8')
 
-        root_dir = os.path.join('articles', self.board_name)
-        mkdir_p(root_dir)
-        path = os.path.join(root_dir, str(num))
         with open(path, 'w') as f:
             f.write(article)
         print '%d saved' % num
@@ -154,6 +159,7 @@ class Crawler(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Bs2 Crawler')
     parser.add_argument('--board-name', required=True)
+    parser.add_argument('--skip-existing', action='store_true')
     args = parser.parse_args()
 
-    bs2 = Crawler('bs2.to', args.board_name)
+    bs2 = Crawler('bs2.to', args.board_name, args.skip_existing)
